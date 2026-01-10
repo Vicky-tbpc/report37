@@ -1,0 +1,331 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <title>生理狀態分析報告生成器</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
+    
+    <style>
+        :root {
+            --main-text: #5a5a5a;
+            --title-blue: #6c838f;
+            --chart-bar: #a0afb7;
+            --chart-line: #596b75;
+            --range-bg: #f5f1eb;
+            --dot-color: #596b75;    
+        }
+        * { box-sizing: border-box; -webkit-print-color-adjust: exact; }
+        body { font-family: "Microsoft JhengHei", sans-serif; color: var(--main-text); margin: 0; padding: 0; background: #f0f0f0; font-size: 10pt; }
+        
+        .controls { background: white; padding: 20px; border-radius: 8px; max-width: 950px; margin: 20px auto; box-shadow: 0 2px 10px rgba(0,0,0,0.1); }
+        .input-row { display: flex; gap: 15px; margin-bottom: 10px; flex-wrap: wrap; }
+        .input-item { display: flex; flex-direction: column; flex: 1; min-width: 180px; }
+        label { font-weight: bold; margin-bottom: 5px; font-size: 9pt; }
+        input, textarea, select { padding: 8px; border: 1px solid #ccc; border-radius: 4px; }
+        textarea { height: 80px; resize: none; font-size: 9pt; }
+        
+        #report-content { background: #f0f0f0; padding: 0; margin: 0; }
+        .page-container { width: 210mm; height: 296mm; padding: 12mm 15mm; margin: 0 auto; background: white; display: flex; flex-direction: column; overflow: hidden; page-break-after: always; }
+        .section { flex: 1; display: flex; flex-direction: column; min-height: 0; border-bottom: 1px solid #f0f0f0; padding: 10px 0; }
+        .section:last-child { border-bottom: none; }
+        
+        .report-header { text-align: center; margin-bottom: 5px; }
+        .report-title { color: var(--title-blue); font-size: 20pt; font-weight: bold; margin: 0; }
+        .section-header { font-size: 11pt; font-weight: bold; margin: 5px 0; color: var(--main-text); }
+        .info-grid { display: grid; grid-template-columns: repeat(2, 1fr) 1.5fr; gap: 5px; margin-bottom: 8px; }
+        
+        .analysis-layout { display: flex; gap: 15px; flex: 1; min-height: 100px; align-items: stretch; }
+        .analysis-text-box { flex: 1; border: 1px solid #eee; padding: 10px; background: #fafafa; line-height: 1.6; font-size: 10pt; overflow-y: auto; white-space: pre-wrap; }
+        .analysis-img-box { display: none; height: 100%; aspect-ratio: 1 / 1; border: 1px solid #ddd; overflow: hidden; background: #fff; flex-shrink: 0; }
+        .analysis-img-box img { width: 100%; height: 100%; object-fit: cover; }
+        
+        .chart-container { flex: 1; min-height: 0; position: relative; width: 100%; margin: 2px 0; }
+        .legend-container { display: flex; justify-content: space-between; align-items: center; font-size: 8.5pt; margin-bottom: 2px; color: #666; }
+        .legend-items { display: flex; gap: 12px; }
+        .legend-item { display: flex; align-items: center; gap: 4px; }
+        .icon-dot { width: 8px; height: 8px; background: var(--dot-color); border-radius: 50%; }
+        .icon-bar { width: 12px; height: 8px; background: var(--chart-bar); }
+        .icon-rect { width: 12px; height: 8px; background: var(--range-bg); border: 1px solid #ddd; }
+        
+        .status-dot { display: inline-block; width: 12px; height: 12px; border-radius: 50%; margin-right: 5px; vertical-align: middle; }
+        button { padding: 10px 20px; border: none; cursor: pointer; color: white; border-radius: 4px; font-weight: bold; }
+    </style>
+</head>
+<body>
+
+<div class="controls">
+    <h2>生理狀態分析報告生成器</h2>
+    <div class="input-row">
+        <div class="input-item"><label>1. 主電量檔案</label><input type="file" id="file1" accept=".xlsx"></div>
+        <div class="input-item"><label>2. 自評檔案</label><input type="file" id="file2" accept=".xlsx"></div>
+        <div class="input-item"><label>3. 詞句庫檔案</label><input type="file" id="file-lib" accept=".xlsx"></div>
+    </div>
+    <div class="input-row">
+        <div class="input-item"><label>序號</label><input type="text" id="cfg-id" placeholder="例如：BA123456" onchange="autoFetchLib()"></div>
+        <div class="input-item"><label>日期 (YYYY/MM/DD)</label><input type="text" id="cfg-date" placeholder="2026/1/1" onchange="autoFetchLib()"></div>
+        <div class="input-item">
+            <label>詞句抓取版本</label>
+            <select id="lib-type" onchange="autoFetchLib()">
+                <option value="detailed">詳細解說 (欄位8)</option>
+                <option value="simple">易懂健康價值版 (欄位9)</option>
+            </select>
+        </div>
+        <div class="input-item"><label>建議圖片</label><input type="file" id="cfg-img" accept="image/*"></div>
+    </div>
+    <div class="input-row">
+        <div class="input-item">
+            <label>當日分析建議 (自動抓取後可自行修改):</label>
+            <textarea id="in-txt1" placeholder="請輸入或等待自動抓取建議內容..."></textarea>
+        </div>
+    </div>
+    <button onclick="generateReport()" style="background:#4CAF50;">生成預覽</button>
+    <button onclick="downloadPDF()" style="background:var(--title-blue); margin-left: 10px;">匯出高解析 PDF</button>
+</div>
+
+<div id="report-content">
+    <div class="page-container">
+        <div class="report-header"><h1 class="report-title">生理狀態分析</h1></div>
+        <div class="section">
+            <div class="section-header">當日分析</div>
+            <div class="info-grid">
+                <div>序號：<span id="out-id"></span></div>
+                <div>日期：<span id="out-date"></span></div>
+                <div>電量指數：<span id="out-battery"></span></div>
+                <div>前7日平均電量：<span id="out-avg7"></span></div>
+                <div>生理狀態：<span id="out-status">--</span></div>
+            </div>
+            <div class="section-header">分析建議</div>
+            <div class="analysis-layout">
+                <div class="analysis-text-box" id="box-txt1"></div>
+                <div class="analysis-img-box" id="img-container"><img id="out-img"></div>
+            </div>
+        </div>
+        
+        <div class="section">
+            <div class="section-header">電量指數14日趨勢</div>
+            <div class="legend-container">
+                <div></div>
+                <div class="legend-items">
+                    <div class="legend-item"><div class="icon-dot"></div>當日數值</div>
+                    <div class="legend-item"><div class="icon-bar"></div>前7日平均</div>
+                </div>
+            </div>
+            <div class="chart-container"><canvas id="chart-2"></canvas></div>
+        </div>
+
+        <div class="section">
+            <div class="section-header">N3 深睡比例14日趨勢</div>
+            <div class="legend-container">
+                <div>單位：%</div>
+                <div class="legend-items">
+                    <div class="legend-item"><div class="icon-dot"></div>當日數值</div>
+                    <div class="legend-item"><div class="icon-bar"></div>前7日平均</div>
+                    <div class="legend-item"><div class="icon-rect"></div>標準參考範圍</div>
+                </div>
+            </div>
+            <div class="chart-container"><canvas id="chart-3"></canvas></div>
+        </div>
+    </div>
+
+    <div class="page-container">
+        <div class="section">
+            <div class="section-header">rMSSD 14日趨勢</div>
+            <div class="legend-container">
+                <div>單位：ms</div>
+                <div class="legend-items">
+                    <div class="legend-item"><div class="icon-dot"></div>當日數值</div>
+                    <div class="legend-item"><div class="icon-bar"></div>前7日平均範圍</div>
+                </div>
+            </div>
+            <div class="chart-container"><canvas id="chart-4"></canvas></div>
+        </div>
+
+        <div class="section">
+            <div class="section-header">睡眠期間最低脈搏14日趨勢</div>
+            <div class="legend-container">
+                <div>單位：bpm</div>
+                <div class="legend-items">
+                    <div class="legend-item"><div class="icon-dot"></div>當日數值</div>
+                    <div class="legend-item"><div class="icon-bar"></div>前7日平均範圍</div>
+                </div>
+            </div>
+            <div class="chart-container"><canvas id="chart-5"></canvas></div>
+        </div>
+
+        <div class="section">
+            <div class="section-header">睡眠期間缺氧負荷指數14日趨勢</div>
+            <div class="legend-container">
+                <div>單位：%min/h</div>
+                <div class="legend-items">
+                    <div class="legend-item"><div class="icon-dot"></div>當日數值</div>
+                    <div class="legend-item"><div class="icon-bar"></div>前7日平均</div>
+                </div>
+            </div>
+            <div class="chart-container"><canvas id="chart-6"></canvas></div>
+        </div>
+    </div>
+</div>
+
+<script>
+    let db1 = null, db2 = null, dbLib = null;
+    let charts = {};
+
+    function readExcel(file, callback) {
+        const reader = new FileReader();
+        reader.onload = (e) => callback(XLSX.read(e.target.result, { type: 'binary' }));
+        reader.readAsBinaryString(file);
+    }
+
+    document.getElementById('file1').onchange = (e) => readExcel(e.target.files[0], d => { db1 = d; autoFetchLib(); });
+    document.getElementById('file2').onchange = (e) => readExcel(e.target.files[0], d => db2 = d);
+    document.getElementById('file-lib').onchange = (e) => readExcel(e.target.files[0], d => { dbLib = d; autoFetchLib(); });
+
+    function getSymbol(todayVal, yestVal, type) {
+        if (type === 'HBI') return todayVal === yestVal ? '＝' : (todayVal > yestVal ? '▲' : '▼');
+        if (type === 'Battery' || type === 'N3') return todayVal > yestVal ? '▲' : (todayVal < yestVal ? '▼' : '＝');
+        return todayVal < yestVal ? '▼' : (todayVal > yestVal ? '▲' : '＝');
+    }
+
+    function getMA(full, currIdx, col, days) {
+        const slice = full.slice(Math.max(0, currIdx - days), currIdx);
+        if(!slice.length) return 0;
+        return Math.round(slice.reduce((a, b) => a + (Number(b[col]) || 0), 0) / slice.length);
+    }
+
+    // 新增：自動抓取詞句庫邏輯 (當序號、日期或版本更動時觸發)
+    function autoFetchLib() {
+        const sid = document.getElementById('cfg-id').value.trim();
+        const tDate = document.getElementById('cfg-date').value.trim();
+        if (!db1 || !dbLib || !sid || !tDate) return;
+
+        const data1 = XLSX.utils.sheet_to_json(db1.Sheets[sid]);
+        const searchDate = tDate.trim().replace(/\//g, '-');
+        const idx = data1.findIndex(r => String(r.record_end).includes(searchDate) || String(r.record_end).includes(tDate));
+
+        if (idx > 0) {
+            const today = data1[idx], yest = data1[idx-1];
+            const pattern = `${getSymbol(today.Battery_TST_min_A, yest.Battery_TST_min_A, 'Battery')},${getSymbol(today.N3_pct, yest.N3_pct, 'N3')},${getSymbol(today.rMSSD, yest.rMSSD, 'rMSSD')},${getSymbol(today.HR_min, yest.HR_min, 'HR')},${getSymbol(today.HBI, yest.HBI, 'HBI')},X,X`;
+            const libSheet = dbLib.Sheets['battery'] || dbLib.Sheets[Object.keys(dbLib.Sheets)[0]];
+            const libData = XLSX.utils.sheet_to_json(libSheet, { header: 1 });
+            const match = libData.find(r => r.slice(0, 7).join(',') === pattern);
+            
+            if (match) {
+                const libType = document.getElementById('lib-type').value;
+                const colIdx = (libType === 'detailed') ? 7 : 8; // 詳細解說(8欄)索引為7, 大眾版(9欄)索引為8
+                document.getElementById('in-txt1').value = match[colIdx] || "";
+            } else {
+                document.getElementById('in-txt1').value = "查無匹配詞句";
+            }
+        }
+    }
+
+    function generateReport() {
+        const sid = document.getElementById('cfg-id').value.trim();
+        const tDate = document.getElementById('cfg-date').value.trim();
+        if(!db1 || !db2) return alert("請上傳檔案");
+        
+        const s1 = db1.Sheets[sid], s2 = db2.Sheets[sid];
+        const data1 = XLSX.utils.sheet_to_json(s1);
+        const data2 = XLSX.utils.sheet_to_json(s2);
+        const searchDate = tDate.trim().replace(/\//g, '-');
+        const idx = data1.findIndex(r => String(r.record_end).includes(searchDate) || String(r.record_end).includes(tDate));
+        if(idx === -1) return alert("日期錯誤");
+
+        // 更新報表基礎資訊
+        document.getElementById('out-id').innerText = sid;
+        document.getElementById('out-date').innerText = tDate;
+        document.getElementById('out-battery').innerText = data1[idx].Personal_Battery_weighted_round || 0;
+        document.getElementById('out-avg7').innerText = getMA(data1, idx, 'Personal_Battery_weighted_round', 7);
+        
+        // 直接取用 textarea 內容 (讓使用者手動修改的內容生效)
+        document.getElementById('box-txt1').innerText = document.getElementById('in-txt1').value;
+
+        // 生理狀態燈號處理：無數值時顯示 "--"
+        const sRow = data2.find(r => r.日期 && String(r.日期).replace(/\//g, '-').includes(searchDate));
+        const statusVal = (sRow && sRow.生理狀態燈號) ? sRow.生理狀態燈號 : '--';
+        if (statusVal !== '--') {
+            const cMap = { '紅燈': '#ff0000', '黃紅燈': '#ff8000', '黃燈': '#ffe632', '綠燈': '#3caa28' };
+            document.getElementById('out-status').innerHTML = `<span class="status-dot" style="background:${cMap[statusVal] || '#ccc'}"></span>${statusVal}`;
+        } else {
+            document.getElementById('out-status').innerText = '--';
+        }
+
+        // 圖片處理
+        const imgFile = document.getElementById('cfg-img').files[0];
+        if(imgFile) {
+            document.getElementById('out-img').src = URL.createObjectURL(imgFile);
+            document.getElementById('img-container').style.display = 'block';
+        } else {
+            document.getElementById('img-container').style.display = 'none';
+        }
+
+        // 趨勢圖繪製
+        const d14 = data1.slice(Math.max(0, idx - 13), idx + 1);
+        const labels = d14.map(r => String(r.record_end).split(' ')[0].substring(5).replace('-', '/'));
+        const offset = data1.indexOf(d14[0]);
+
+        draw('chart-2', labels, d14.map(r=>r.Personal_Battery_weighted_round), d14.map((_, i)=>getMA(data1, offset+i, 'Personal_Battery_weighted_round', 7)), 'bar');
+        draw('chart-3', labels, d14.map(r=>r.N3_pct), d14.map((_, i)=>getMA(data1, offset+i, 'N3_pct', 7)), 'bar', { range: [10, 20] });
+        draw('chart-4', labels, d14.map(r=>r.rMSSD), d14.map((_, i)=>{let a=getMA(data1, offset+i, 'rMSSD', 7); return [a*0.9, a*1.1]}), 'range');
+        draw('chart-5', labels, d14.map(r=>r.HR_min), d14.map((_, i)=>{let a=getMA(data1, offset+i, 'HR_min', 7); return [a-5, a+5]}), 'range');
+        draw('chart-6', labels, d14.map(r=>r.HBI), d14.map((_, i)=>getMA(data1, offset+i, 'HBI', 7)), 'bar');
+    }
+
+    function draw(id, labels, lineData, helperData, type, extra={}) {
+        if(charts[id]) charts[id].destroy();
+        charts[id] = new Chart(document.getElementById(id), {
+            data: {
+                labels,
+                datasets: [
+                    { type: 'line', data: lineData, borderColor: '#596b75', backgroundColor: '#596b75', borderWidth: 2, pointRadius: 3, z: 10 },
+                    { type: 'bar', data: helperData, backgroundColor: '#a0afb7', barPercentage: 0.5, categoryPercentage: 0.8 }
+                ]
+            },
+            plugins: extra.range ? [{
+                beforeDraw: (c) => {
+                    const {ctx, chartArea, scales: {y}} = c;
+                    ctx.save();
+                    ctx.beginPath();
+                    ctx.rect(chartArea.left, chartArea.top, chartArea.width, chartArea.height);
+                    ctx.clip();
+                    ctx.fillStyle = '#f5f1eb';
+                    const top = y.getPixelForValue(extra.range[1]);
+                    const bottom = y.getPixelForValue(extra.range[0]);
+                    ctx.fillRect(chartArea.left, top, chartArea.width, bottom - top);
+                    ctx.restore();
+                }
+            }] : [],
+            options: {
+                devicePixelRatio: 4, maintainAspectRatio: false,
+                scales: { 
+                    y: { beginAtZero: false, ticks: { font: { size: 8 } } }, 
+                    x: { grid: { display: false }, ticks: { font: { size: 8 } } } 
+                },
+                plugins: { legend: { display: false } }
+            }
+        });
+    }
+
+    function downloadPDF() {
+        const sid = document.getElementById('cfg-id').value.trim() || "Report";
+        const rawDate = document.getElementById('cfg-date').value.trim();
+        let dateStr = "";
+        const dateMatch = rawDate.match(/(\d{4})[\/\-](\d{1,2})[\/\-](\d{1,2})/);
+        if (dateMatch) {
+            dateStr = dateMatch[1] + dateMatch[2].padStart(2, '0') + dateMatch[3].padStart(2, '0');
+        } else {
+            dateStr = rawDate.replace(/[\/\-]/g, '');
+        }
+        html2pdf().set({
+            margin: 0,
+            filename: `生理狀態分析_${sid}_${dateStr}.pdf`,
+            image: { type: 'jpeg', quality: 1.0 },
+            html2canvas: { scale: 6, useCORS: true },
+            jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' }
+        }).from(document.getElementById('report-content')).save();
+    }
+</script>
+</body>
+</html>
