@@ -2,6 +2,7 @@
 <html lang="zh-TW">
 <head>
     <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>生理狀態分析報告生成器</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
@@ -19,42 +20,85 @@
         * { box-sizing: border-box; -webkit-print-color-adjust: exact; }
         body { font-family: "Microsoft JhengHei", sans-serif; color: var(--main-text); margin: 0; padding: 0; background: #f0f0f0; font-size: 10pt; }
         
-        .controls { background: white; padding: 20px; border-radius: 8px; max-width: 950px; margin: 20px auto; box-shadow: 0 2px 10px rgba(0,0,0,0.1); }
-        .input-row { display: flex; gap: 15px; margin-bottom: 10px; flex-wrap: wrap; }
-        .input-item { display: flex; flex-direction: column; flex: 1; min-width: 180px; }
-        label { font-weight: bold; margin-bottom: 5px; font-size: 9pt; }
-        input, textarea, select { padding: 8px; border: 1px solid #ccc; border-radius: 4px; }
-        textarea { height: 80px; resize: none; font-size: 9pt; }
+        /* 控制面板：手機改為 95% 寬度 */
+        .controls { background: white; padding: 15px; border-radius: 8px; width: 95%; max-width: 950px; margin: 15px auto; box-shadow: 0 2px 10px rgba(0,0,0,0.1); }
+        .input-row { display: flex; gap: 12px; margin-bottom: 10px; flex-wrap: wrap; }
+        .input-item { display: flex; flex-direction: column; flex: 1; min-width: 140px; }
         
-        #report-content { background: #f0f0f0; padding: 0; margin: 0; }
-        .page-container { width: 210mm; height: 296mm; padding: 12mm 15mm; margin: 0 auto; background: white; display: flex; flex-direction: column; overflow: hidden; page-break-after: always; }
+        /* 針對手機端的輸入框調整 */
+        @media (max-width: 600px) {
+            .input-item { min-width: 100%; }
+            .btn-group { display: flex; flex-direction: column; gap: 10px; }
+            button { margin: 0 !important; width: 100%; }
+        }
+
+        label { font-weight: bold; margin-bottom: 5px; font-size: 9pt; }
+        input, textarea, select { padding: 10px; border: 1px solid #ccc; border-radius: 4px; font-size: 10pt; }
+        textarea { height: 80px; resize: none; }
+        
+        #report-content { background: #f0f0f0; padding-bottom: 30px; }
+
+        /* 核心調整：手機版寬度 100%，電腦版固定 A4 */
+        .page-container { 
+            width: 100%; 
+            max-width: 210mm; 
+            min-height: auto; 
+            padding: 8mm 10mm; 
+            margin: 0 auto 15px auto; 
+            background: white; 
+            display: flex; 
+            flex-direction: column; 
+            overflow: hidden; 
+        }
+
+        /* 僅在電腦版或匯出時強制 A4 高度 */
+        @media (min-width: 800px) {
+            .page-container { height: 296mm; page-break-after: always; padding: 12mm 15mm; }
+        }
+        
         .section { flex: 1; display: flex; flex-direction: column; min-height: 0; border-bottom: 1px solid #f0f0f0; padding: 10px 0; }
         .section:last-child { border-bottom: none; }
         
         .report-header { text-align: center; margin-bottom: 5px; }
-        .report-title { color: var(--title-blue); font-size: 20pt; font-weight: bold; margin: 0; }
+        .report-title { color: var(--title-blue); font-size: 18pt; font-weight: bold; margin: 0; }
         .section-header { font-size: 11pt; font-weight: bold; margin: 5px 0; color: var(--main-text); }
-        .info-grid { display: grid; grid-template-columns: repeat(2, 1fr) 1.5fr; gap: 5px; margin-bottom: 8px; }
         
-        .analysis-layout { display: flex; gap: 15px; flex: 1; min-height: 100px; align-items: stretch; }
+        /* 資訊網格手機自動換行 */
+        .info-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: 5px; margin-bottom: 8px; }
+        
+        /* 分析區塊手機改為垂直 */
+        .analysis-layout { display: flex; flex-direction: column; gap: 10px; flex: 1; min-height: 100px; }
+        @media (min-width: 600px) {
+            .analysis-layout { flex-direction: row; }
+            .analysis-img-box { width: 150px; }
+        }
+
         .analysis-text-box { flex: 1; border: 1px solid #eee; padding: 10px; background: #fafafa; line-height: 1.6; font-size: 10pt; overflow-y: auto; white-space: pre-wrap; }
-        .analysis-img-box { display: none; height: 100%; aspect-ratio: 1 / 1; border: 1px solid #ddd; overflow: hidden; background: #fff; flex-shrink: 0; }
+        .analysis-img-box { display: none; aspect-ratio: 1 / 1; border: 1px solid #ddd; overflow: hidden; background: #fff; flex-shrink: 0; }
         .analysis-img-box img { width: 100%; height: 100%; object-fit: cover; }
         
-        .chart-container { flex: 1; min-height: 0; position: relative; width: 100%; margin: 2px 0; }
-        .legend-container { display: flex; justify-content: space-between; align-items: center; font-size: 8.5pt; margin-bottom: 2px; color: #666; }
-        .legend-items { display: flex; gap: 12px; }
+        .chart-container { flex: 1; min-height: 180px; position: relative; width: 100%; margin: 2px 0; }
+        .legend-container { display: flex; justify-content: space-between; align-items: center; font-size: 8pt; margin-bottom: 2px; color: #666; flex-wrap: wrap; }
+        .legend-items { display: flex; gap: 8px; flex-wrap: wrap; }
         .legend-item { display: flex; align-items: center; gap: 4px; }
+        
         .icon-dot { width: 8px; height: 8px; background: var(--dot-color); border-radius: 50%; }
         .icon-bar { width: 12px; height: 8px; background: var(--chart-bar); }
         .icon-rect { width: 12px; height: 8px; background: var(--range-bg); border: 1px solid #ddd; }
         
         .status-dot { display: inline-block; width: 12px; height: 12px; border-radius: 50%; margin-right: 5px; vertical-align: middle; }
-        button { padding: 10px 20px; border: none; cursor: pointer; color: white; border-radius: 4px; font-weight: bold; }
+        button { padding: 12px 20px; border: none; cursor: pointer; color: white; border-radius: 4px; font-weight: bold; font-size: 10pt; }
         
-        .footer-description { margin-top: 15px; font-family: "Microsoft JhengHei", sans-serif; color: var(--main-text); font-size: 9pt; line-height: 1.5; }
-        .footer-description p { margin: 5px 0; }
+        .footer-description { margin-top: 10px; font-family: "Microsoft JhengHei", sans-serif; color: var(--main-text); font-size: 8.5pt; line-height: 1.4; }
+        .footer-description p { margin: 3px 0; }
         .footer-description strong { color: var(--title-blue); }
+
+        /* 列印與 PDF 專用修正 */
+        @media print {
+            .controls { display: none; }
+            .page-container { width: 210mm !important; height: 296mm !important; margin: 0 !important; padding: 12mm 15mm !important; }
+            #report-content { background: white; }
+        }
     </style>
 </head>
 <body>
@@ -80,12 +124,14 @@
     </div>
     <div class="input-row">
         <div class="input-item">
-            <label>當日分析建議 (自動抓取後可自行修改):</label>
+            <label>當日分析建議:</label>
             <textarea id="in-txt1" placeholder="請輸入或等待自動抓取建議內容..."></textarea>
         </div>
     </div>
-    <button onclick="generateReport()" style="background:#4CAF50;">生成預覽</button>
-    <button onclick="downloadPDF()" style="background:var(--title-blue); margin-left: 10px;">匯出高解析 PDF</button>
+    <div class="btn-group">
+        <button onclick="generateReport()" style="background:#4CAF50;">生成預覽</button>
+        <button onclick="downloadPDF()" style="background:var(--title-blue); margin-left: 10px;">匯出高解析 PDF</button>
+    </div>
 </div>
 
 <div id="report-content">
@@ -107,7 +153,7 @@
             </div>
             <div class="footer-description">
                 <p><strong>電量指數：</strong>透過追蹤您過去7天的脈搏、深睡與自律神經等數據建立個人基準；精確算出每天的「身體電量」，讓您從昨晚的睡眠品質知道今天該衝刺還是休息。</p>
-                <p><strong>生理狀態：</strong>透過生理數據監測，將生理變化轉化成一眼就能看懂的燈號，幫您及早察覺身體是否正在發炎，得以適時調整作息與生活習慣。</p>
+                <p><strong>生理狀態：</strong>透過分析近7～30天的生理數據建立個人基準，利用機器學習即時偵測異常變化，並將複雜的生理資訊轉換為簡單易懂的健康燈號，幫助您快速掌握身體狀態，及早發現可能的發炎跡象並調整生活作息。</p>
             </div>
         </div>
         
@@ -130,7 +176,7 @@
                 <div class="legend-items">
                     <div class="legend-item"><div class="icon-dot"></div>當日數值</div>
                     <div class="legend-item"><div class="icon-bar"></div>前7日平均</div>
-                    <div class="legend-item"><div class="icon-rect"></div>標準參考範圍</div>
+                    <div class="legend-item"><div class="icon-rect"></div>標準範圍</div>
                 </div>
             </div>
             <div class="chart-container"><canvas id="chart-3"></canvas></div>
@@ -177,6 +223,7 @@
 </div>
 
 <script>
+    /* 原有 JavaScript 邏輯保持不變 */
     let db1 = null, db2 = null, dbLib = null;
     let charts = {};
 
@@ -197,14 +244,10 @@
     }
 
     function getMA(full, currIdx, col, days) {
-        // 排除當天數據：從 currIdx-days 到 currIdx-1
         const slice = full.slice(Math.max(0, currIdx - days), currIdx);
         if(!slice.length) return null;
-        
         const validData = slice.map(r => Number(r[col])).filter(val => !isNaN(val));
         if(!validData.length) return null;
-
-        // 依據實際資料筆數計算平均
         return Math.round(validData.reduce((a, b) => a + b, 0) / validData.length);
     }
 
@@ -252,7 +295,6 @@
         
         const avg7 = getMA(data1, idx, 'Personal_Battery_weighted_round', 7);
         document.getElementById('out-avg7').innerText = avg7 !== null ? avg7 : '--';
-        
         document.getElementById('box-txt1').innerText = document.getElementById('in-txt1').value;
 
         const sRow = data2.find(r => r.日期 && String(r.日期).replace(/\//g, '-').includes(searchDate));
@@ -278,17 +320,14 @@
 
         draw('chart-2', labels, d14.map(r=>r.Personal_Battery_weighted_round), d14.map((_, i)=>getMA(data1, offset+i, 'Personal_Battery_weighted_round', 7)), 'bar');
         draw('chart-3', labels, d14.map(r=>r.N3_pct), d14.map((_, i)=>getMA(data1, offset+i, 'N3_pct', 7)), 'bar', { range: [10, 20] });
-        
         draw('chart-4', labels, d14.map(r=>r.rMSSD), d14.map((_, i)=>{
             let a = getMA(data1, offset+i, 'rMSSD', 7); 
             return a !== null ? [a*0.9, a*1.1] : null;
         }), 'range');
-
         draw('chart-5', labels, d14.map(r=>r.HR_min), d14.map((_, i)=>{
             let a = getMA(data1, offset+i, 'HR_min', 7); 
             return a !== null ? [a-5, a+5] : null;
         }), 'range');
-
         draw('chart-6', labels, d14.map(r=>r.HBI), d14.map((_, i)=>getMA(data1, offset+i, 'HBI', 7)), 'bar');
     }
 
