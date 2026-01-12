@@ -51,6 +51,10 @@
         
         .status-dot { display: inline-block; width: 12px; height: 12px; border-radius: 50%; margin-right: 5px; vertical-align: middle; }
         button { padding: 10px 20px; border: none; cursor: pointer; color: white; border-radius: 4px; font-weight: bold; }
+        
+        .footer-description { margin-top: 15px; font-family: "Microsoft JhengHei", sans-serif; color: var(--main-text); font-size: 9pt; line-height: 1.5; }
+        .footer-description p { margin: 5px 0; }
+        .footer-description strong { color: var(--title-blue); }
     </style>
 </head>
 <body>
@@ -100,6 +104,10 @@
             <div class="analysis-layout">
                 <div class="analysis-text-box" id="box-txt1"></div>
                 <div class="analysis-img-box" id="img-container"><img id="out-img"></div>
+            </div>
+            <div class="footer-description">
+                <p><strong>電量指數：</strong>透過追蹤您過去7天的脈搏、深睡與自律神經等數據建立個人基準；精確算出每天的「身體電量」，讓您從昨晚的睡眠品質知道今天該衝刺還是休息。</p>
+                <p><strong>生理狀態：</strong>透過生理數據監測，將生理變化轉化成一眼就能看懂的燈號，幫您及早察覺身體是否正在發炎，得以適時調整作息與生活習慣。</p>
             </div>
         </div>
         
@@ -189,12 +197,17 @@
     }
 
     function getMA(full, currIdx, col, days) {
+        // 排除當天數據：從 currIdx-days 到 currIdx-1
         const slice = full.slice(Math.max(0, currIdx - days), currIdx);
-        if(!slice.length) return 0;
-        return Math.round(slice.reduce((a, b) => a + (Number(b[col]) || 0), 0) / slice.length);
+        if(!slice.length) return null;
+        
+        const validData = slice.map(r => Number(r[col])).filter(val => !isNaN(val));
+        if(!validData.length) return null;
+
+        // 依據實際資料筆數計算平均
+        return Math.round(validData.reduce((a, b) => a + b, 0) / validData.length);
     }
 
-    // 新增：自動抓取詞句庫邏輯 (當序號、日期或版本更動時觸發)
     function autoFetchLib() {
         const sid = document.getElementById('cfg-id').value.trim();
         const tDate = document.getElementById('cfg-date').value.trim();
@@ -213,7 +226,7 @@
             
             if (match) {
                 const libType = document.getElementById('lib-type').value;
-                const colIdx = (libType === 'detailed') ? 7 : 8; // 詳細解說(8欄)索引為7, 大眾版(9欄)索引為8
+                const colIdx = (libType === 'detailed') ? 7 : 8;
                 document.getElementById('in-txt1').value = match[colIdx] || "";
             } else {
                 document.getElementById('in-txt1').value = "查無匹配詞句";
@@ -233,16 +246,15 @@
         const idx = data1.findIndex(r => String(r.record_end).includes(searchDate) || String(r.record_end).includes(tDate));
         if(idx === -1) return alert("日期錯誤");
 
-        // 更新報表基礎資訊
         document.getElementById('out-id').innerText = sid;
         document.getElementById('out-date').innerText = tDate;
         document.getElementById('out-battery').innerText = data1[idx].Personal_Battery_weighted_round || 0;
-        document.getElementById('out-avg7').innerText = getMA(data1, idx, 'Personal_Battery_weighted_round', 7);
         
-        // 直接取用 textarea 內容 (讓使用者手動修改的內容生效)
+        const avg7 = getMA(data1, idx, 'Personal_Battery_weighted_round', 7);
+        document.getElementById('out-avg7').innerText = avg7 !== null ? avg7 : '--';
+        
         document.getElementById('box-txt1').innerText = document.getElementById('in-txt1').value;
 
-        // 生理狀態燈號處理：無數值時顯示 "--"
         const sRow = data2.find(r => r.日期 && String(r.日期).replace(/\//g, '-').includes(searchDate));
         const statusVal = (sRow && sRow.生理狀態燈號) ? sRow.生理狀態燈號 : '--';
         if (statusVal !== '--') {
@@ -252,7 +264,6 @@
             document.getElementById('out-status').innerText = '--';
         }
 
-        // 圖片處理
         const imgFile = document.getElementById('cfg-img').files[0];
         if(imgFile) {
             document.getElementById('out-img').src = URL.createObjectURL(imgFile);
@@ -261,15 +272,23 @@
             document.getElementById('img-container').style.display = 'none';
         }
 
-        // 趨勢圖繪製
         const d14 = data1.slice(Math.max(0, idx - 13), idx + 1);
         const labels = d14.map(r => String(r.record_end).split(' ')[0].substring(5).replace('-', '/'));
         const offset = data1.indexOf(d14[0]);
 
         draw('chart-2', labels, d14.map(r=>r.Personal_Battery_weighted_round), d14.map((_, i)=>getMA(data1, offset+i, 'Personal_Battery_weighted_round', 7)), 'bar');
         draw('chart-3', labels, d14.map(r=>r.N3_pct), d14.map((_, i)=>getMA(data1, offset+i, 'N3_pct', 7)), 'bar', { range: [10, 20] });
-        draw('chart-4', labels, d14.map(r=>r.rMSSD), d14.map((_, i)=>{let a=getMA(data1, offset+i, 'rMSSD', 7); return [a*0.9, a*1.1]}), 'range');
-        draw('chart-5', labels, d14.map(r=>r.HR_min), d14.map((_, i)=>{let a=getMA(data1, offset+i, 'HR_min', 7); return [a-5, a+5]}), 'range');
+        
+        draw('chart-4', labels, d14.map(r=>r.rMSSD), d14.map((_, i)=>{
+            let a = getMA(data1, offset+i, 'rMSSD', 7); 
+            return a !== null ? [a*0.9, a*1.1] : null;
+        }), 'range');
+
+        draw('chart-5', labels, d14.map(r=>r.HR_min), d14.map((_, i)=>{
+            let a = getMA(data1, offset+i, 'HR_min', 7); 
+            return a !== null ? [a-5, a+5] : null;
+        }), 'range');
+
         draw('chart-6', labels, d14.map(r=>r.HBI), d14.map((_, i)=>getMA(data1, offset+i, 'HBI', 7)), 'bar');
     }
 
@@ -311,13 +330,7 @@
     function downloadPDF() {
         const sid = document.getElementById('cfg-id').value.trim() || "Report";
         const rawDate = document.getElementById('cfg-date').value.trim();
-        let dateStr = "";
-        const dateMatch = rawDate.match(/(\d{4})[\/\-](\d{1,2})[\/\-](\d{1,2})/);
-        if (dateMatch) {
-            dateStr = dateMatch[1] + dateMatch[2].padStart(2, '0') + dateMatch[3].padStart(2, '0');
-        } else {
-            dateStr = rawDate.replace(/[\/\-]/g, '');
-        }
+        let dateStr = rawDate.replace(/[\/\-]/g, '');
         html2pdf().set({
             margin: 0,
             filename: `生理狀態分析_${sid}_${dateStr}.pdf`,
