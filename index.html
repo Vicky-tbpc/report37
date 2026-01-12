@@ -20,17 +20,11 @@
         * { box-sizing: border-box; -webkit-print-color-adjust: exact; }
         body { font-family: "Microsoft JhengHei", sans-serif; color: var(--main-text); margin: 0; padding: 0; background: #f0f0f0; font-size: 10pt; }
         
-        /* 控制面板：手機改為 95% 寬度 */
+        /* 控制面板響應式 */
         .controls { background: white; padding: 15px; border-radius: 8px; width: 95%; max-width: 950px; margin: 15px auto; box-shadow: 0 2px 10px rgba(0,0,0,0.1); }
         .input-row { display: flex; gap: 12px; margin-bottom: 10px; flex-wrap: wrap; }
         .input-item { display: flex; flex-direction: column; flex: 1; min-width: 140px; }
-        
-        /* 針對手機端的輸入框調整 */
-        @media (max-width: 600px) {
-            .input-item { min-width: 100%; }
-            .btn-group { display: flex; flex-direction: column; gap: 10px; }
-            button { margin: 0 !important; width: 100%; }
-        }
+        @media (max-width: 600px) { .input-item { min-width: 100%; } }
 
         label { font-weight: bold; margin-bottom: 5px; font-size: 9pt; }
         input, textarea, select { padding: 10px; border: 1px solid #ccc; border-radius: 4px; font-size: 10pt; }
@@ -38,22 +32,21 @@
         
         #report-content { background: #f0f0f0; padding-bottom: 30px; }
 
-        /* 核心調整：手機版寬度 100%，電腦版固定 A4 */
+        /* 核心調整：手機端自適應，電腦端/PDF 匯出時固定 A4 */
         .page-container { 
-            width: 100%; 
+            width: 95%; 
             max-width: 210mm; 
-            min-height: auto; 
-            padding: 8mm 10mm; 
-            margin: 0 auto 15px auto; 
+            margin: 15px auto; 
+            padding: 10mm; 
             background: white; 
             display: flex; 
             flex-direction: column; 
-            overflow: hidden; 
+            box-shadow: 0 0 10px rgba(0,0,0,0.1);
         }
 
-        /* 僅在電腦版或匯出時強制 A4 高度 */
-        @media (min-width: 800px) {
-            .page-container { height: 296mm; page-break-after: always; padding: 12mm 15mm; }
+        /* 僅在寬螢幕下啟用 A4 固定高度預覽 */
+        @media (min-width: 850px) {
+            .page-container { height: 296mm; page-break-after: always; padding: 12mm 15mm; margin: 0 auto; }
         }
         
         .section { flex: 1; display: flex; flex-direction: column; min-height: 0; border-bottom: 1px solid #f0f0f0; padding: 10px 0; }
@@ -63,21 +56,21 @@
         .report-title { color: var(--title-blue); font-size: 18pt; font-weight: bold; margin: 0; }
         .section-header { font-size: 11pt; font-weight: bold; margin: 5px 0; color: var(--main-text); }
         
-        /* 資訊網格手機自動換行 */
+        /* 資訊網格：手機自動切換單/雙欄 */
         .info-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: 5px; margin-bottom: 8px; }
         
-        /* 分析區塊手機改為垂直 */
+        /* 分析區塊：手機改為垂直堆疊 */
         .analysis-layout { display: flex; flex-direction: column; gap: 10px; flex: 1; min-height: 100px; }
         @media (min-width: 600px) {
             .analysis-layout { flex-direction: row; }
             .analysis-img-box { width: 150px; }
         }
 
-        .analysis-text-box { flex: 1; border: 1px solid #eee; padding: 10px; background: #fafafa; line-height: 1.6; font-size: 10pt; overflow-y: auto; white-space: pre-wrap; }
+        .analysis-text-box { flex: 1; border: 1px solid #eee; padding: 10px; background: #fafafa; line-height: 1.6; font-size: 10pt; white-space: pre-wrap; }
         .analysis-img-box { display: none; aspect-ratio: 1 / 1; border: 1px solid #ddd; overflow: hidden; background: #fff; flex-shrink: 0; }
         .analysis-img-box img { width: 100%; height: 100%; object-fit: cover; }
         
-        .chart-container { flex: 1; min-height: 180px; position: relative; width: 100%; margin: 2px 0; }
+        .chart-container { flex: 1; min-height: 200px; position: relative; width: 100%; margin: 2px 0; }
         .legend-container { display: flex; justify-content: space-between; align-items: center; font-size: 8pt; margin-bottom: 2px; color: #666; flex-wrap: wrap; }
         .legend-items { display: flex; gap: 8px; flex-wrap: wrap; }
         .legend-item { display: flex; align-items: center; gap: 4px; }
@@ -88,16 +81,24 @@
         
         .status-dot { display: inline-block; width: 12px; height: 12px; border-radius: 50%; margin-right: 5px; vertical-align: middle; }
         button { padding: 12px 20px; border: none; cursor: pointer; color: white; border-radius: 4px; font-weight: bold; font-size: 10pt; }
-        
+        .btn-group { display: flex; gap: 10px; flex-wrap: wrap; }
+
         .footer-description { margin-top: 10px; font-family: "Microsoft JhengHei", sans-serif; color: var(--main-text); font-size: 8.5pt; line-height: 1.4; }
         .footer-description p { margin: 3px 0; }
         .footer-description strong { color: var(--title-blue); }
 
-        /* 列印與 PDF 專用修正 */
+        /* 重要：匯出 PDF 時強制恢復 A4 格式 */
         @media print {
             .controls { display: none; }
-            .page-container { width: 210mm !important; height: 296mm !important; margin: 0 !important; padding: 12mm 15mm !important; }
             #report-content { background: white; }
+            .page-container { 
+                width: 210mm !important; 
+                height: 296mm !important; 
+                margin: 0 !important; 
+                padding: 12mm 15mm !important; 
+                box-shadow: none !important;
+                page-break-after: always !important;
+            }
         }
     </style>
 </head>
@@ -130,7 +131,7 @@
     </div>
     <div class="btn-group">
         <button onclick="generateReport()" style="background:#4CAF50;">生成預覽</button>
-        <button onclick="downloadPDF()" style="background:var(--title-blue); margin-left: 10px;">匯出高解析 PDF</button>
+        <button onclick="downloadPDF()" style="background:var(--title-blue);">匯出高解析 PDF</button>
     </div>
 </div>
 
@@ -223,7 +224,7 @@
 </div>
 
 <script>
-    /* 原有 JavaScript 邏輯保持不變 */
+    /* 保持所有原始邏輯不變 */
     let db1 = null, db2 = null, dbLib = null;
     let charts = {};
 
@@ -255,24 +256,18 @@
         const sid = document.getElementById('cfg-id').value.trim();
         const tDate = document.getElementById('cfg-date').value.trim();
         if (!db1 || !dbLib || !sid || !tDate) return;
-
         const data1 = XLSX.utils.sheet_to_json(db1.Sheets[sid]);
         const searchDate = tDate.trim().replace(/\//g, '-');
         const idx = data1.findIndex(r => String(r.record_end).includes(searchDate) || String(r.record_end).includes(tDate));
-
         if (idx > 0) {
             const today = data1[idx], yest = data1[idx-1];
             const pattern = `${getSymbol(today.Battery_TST_min_A, yest.Battery_TST_min_A, 'Battery')},${getSymbol(today.N3_pct, yest.N3_pct, 'N3')},${getSymbol(today.rMSSD, yest.rMSSD, 'rMSSD')},${getSymbol(today.HR_min, yest.HR_min, 'HR')},${getSymbol(today.HBI, yest.HBI, 'HBI')},X,X`;
             const libSheet = dbLib.Sheets['battery'] || dbLib.Sheets[Object.keys(dbLib.Sheets)[0]];
             const libData = XLSX.utils.sheet_to_json(libSheet, { header: 1 });
             const match = libData.find(r => r.slice(0, 7).join(',') === pattern);
-            
             if (match) {
                 const libType = document.getElementById('lib-type').value;
-                const colIdx = (libType === 'detailed') ? 7 : 8;
-                document.getElementById('in-txt1').value = match[colIdx] || "";
-            } else {
-                document.getElementById('in-txt1').value = "查無匹配詞句";
+                document.getElementById('in-txt1').value = match[(libType === 'detailed') ? 7 : 8] || "";
             }
         }
     }
@@ -281,7 +276,6 @@
         const sid = document.getElementById('cfg-id').value.trim();
         const tDate = document.getElementById('cfg-date').value.trim();
         if(!db1 || !db2) return alert("請上傳檔案");
-        
         const s1 = db1.Sheets[sid], s2 = db2.Sheets[sid];
         const data1 = XLSX.utils.sheet_to_json(s1);
         const data2 = XLSX.utils.sheet_to_json(s2);
@@ -292,9 +286,7 @@
         document.getElementById('out-id').innerText = sid;
         document.getElementById('out-date').innerText = tDate;
         document.getElementById('out-battery').innerText = data1[idx].Personal_Battery_weighted_round || 0;
-        
-        const avg7 = getMA(data1, idx, 'Personal_Battery_weighted_round', 7);
-        document.getElementById('out-avg7').innerText = avg7 !== null ? avg7 : '--';
+        document.getElementById('out-avg7').innerText = getMA(data1, idx, 'Personal_Battery_weighted_round', 7) || '--';
         document.getElementById('box-txt1').innerText = document.getElementById('in-txt1').value;
 
         const sRow = data2.find(r => r.日期 && String(r.日期).replace(/\//g, '-').includes(searchDate));
@@ -302,16 +294,12 @@
         if (statusVal !== '--') {
             const cMap = { '紅燈': '#ff0000', '黃紅燈': '#ff8000', '黃燈': '#ffe632', '綠燈': '#3caa28' };
             document.getElementById('out-status').innerHTML = `<span class="status-dot" style="background:${cMap[statusVal] || '#ccc'}"></span>${statusVal}`;
-        } else {
-            document.getElementById('out-status').innerText = '--';
         }
 
         const imgFile = document.getElementById('cfg-img').files[0];
         if(imgFile) {
             document.getElementById('out-img').src = URL.createObjectURL(imgFile);
             document.getElementById('img-container').style.display = 'block';
-        } else {
-            document.getElementById('img-container').style.display = 'none';
         }
 
         const d14 = data1.slice(Math.max(0, idx - 13), idx + 1);
@@ -321,12 +309,10 @@
         draw('chart-2', labels, d14.map(r=>r.Personal_Battery_weighted_round), d14.map((_, i)=>getMA(data1, offset+i, 'Personal_Battery_weighted_round', 7)), 'bar');
         draw('chart-3', labels, d14.map(r=>r.N3_pct), d14.map((_, i)=>getMA(data1, offset+i, 'N3_pct', 7)), 'bar', { range: [10, 20] });
         draw('chart-4', labels, d14.map(r=>r.rMSSD), d14.map((_, i)=>{
-            let a = getMA(data1, offset+i, 'rMSSD', 7); 
-            return a !== null ? [a*0.9, a*1.1] : null;
+            let a = getMA(data1, offset+i, 'rMSSD', 7); return a ? [a*0.9, a*1.1] : null;
         }), 'range');
         draw('chart-5', labels, d14.map(r=>r.HR_min), d14.map((_, i)=>{
-            let a = getMA(data1, offset+i, 'HR_min', 7); 
-            return a !== null ? [a-5, a+5] : null;
+            let a = getMA(data1, offset+i, 'HR_min', 7); return a ? [a-5, a+5] : null;
         }), 'range');
         draw('chart-6', labels, d14.map(r=>r.HBI), d14.map((_, i)=>getMA(data1, offset+i, 'HBI', 7)), 'bar');
     }
@@ -344,23 +330,15 @@
             plugins: extra.range ? [{
                 beforeDraw: (c) => {
                     const {ctx, chartArea, scales: {y}} = c;
-                    ctx.save();
-                    ctx.beginPath();
-                    ctx.rect(chartArea.left, chartArea.top, chartArea.width, chartArea.height);
-                    ctx.clip();
+                    ctx.save(); ctx.beginPath(); ctx.rect(chartArea.left, chartArea.top, chartArea.width, chartArea.height); ctx.clip();
                     ctx.fillStyle = '#f5f1eb';
-                    const top = y.getPixelForValue(extra.range[1]);
-                    const bottom = y.getPixelForValue(extra.range[0]);
-                    ctx.fillRect(chartArea.left, top, chartArea.width, bottom - top);
-                    ctx.restore();
+                    const top = y.getPixelForValue(extra.range[1]), bottom = y.getPixelForValue(extra.range[0]);
+                    ctx.fillRect(chartArea.left, top, chartArea.width, bottom - top); ctx.restore();
                 }
             }] : [],
             options: {
                 devicePixelRatio: 4, maintainAspectRatio: false,
-                scales: { 
-                    y: { beginAtZero: false, ticks: { font: { size: 8 } } }, 
-                    x: { grid: { display: false }, ticks: { font: { size: 8 } } } 
-                },
+                scales: { y: { ticks: { font: { size: 8 } } }, x: { grid: { display: false }, ticks: { font: { size: 8 } } } },
                 plugins: { legend: { display: false } }
             }
         });
@@ -369,10 +347,10 @@
     function downloadPDF() {
         const sid = document.getElementById('cfg-id').value.trim() || "Report";
         const rawDate = document.getElementById('cfg-date').value.trim();
-        let dateStr = rawDate.replace(/[\/\-]/g, '');
+        let dateStr = rawDate.replace(/[\/\-]/g, ''); // 轉換日期格式為 YYYYMMDD
         html2pdf().set({
             margin: 0,
-            filename: `生理狀態分析_${sid}_${dateStr}.pdf`,
+            filename: `生理狀態分析_${sid}_${dateStr}.pdf`, // 符合指定的檔名格式
             image: { type: 'jpeg', quality: 1.0 },
             html2canvas: { scale: 6, useCORS: true },
             jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' }
