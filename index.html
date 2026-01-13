@@ -60,7 +60,7 @@
 <body>
 
 <div class="controls">
-    <h2>生理狀態分析報告生成器 V40</h2>
+    <h2>生理狀態分析報告生成器 V41</h2>
     <div class="input-row">
         <div class="input-item"><label>1. 主電量檔案</label><input type="file" id="file1" accept=".xlsx"></div>
         <div class="input-item"><label>2. 自評檔案</label><input type="file" id="file2" accept=".xlsx"></div>
@@ -234,27 +234,58 @@
         }
     }
 
-    function generateReport() {
+
+function generateReport() {
         const sid = document.getElementById('cfg-id').value.trim();
         const tDate = document.getElementById('cfg-date').value.trim();
         if(!db1 || !db2) return alert("請上傳檔案");
         
         const s1 = db1.Sheets[sid], s2 = db2.Sheets[sid];
+        if(!s1) return alert("找不到該序號的工作表");
+        
         const data1 = XLSX.utils.sheet_to_json(s1);
         const data2 = XLSX.utils.sheet_to_json(s2);
         const searchDate = tDate.trim().replace(/\//g, '-');
         const idx = data1.findIndex(r => String(r.record_end).includes(searchDate) || String(r.record_end).includes(tDate));
+        
         if(idx === -1) return alert("日期錯誤");
+
+        // --- 新增：計算超過百分之幾的使用者 ---
+        let percentileText = "";
+        const targetBattery = data1[idx].Personal_Battery_weighted_round || 0;
+        
+        // 獲取所有工作表名稱 (即所有序號)
+        const allSheetNames = db1.SheetNames;
+        let allUsersBatteries = [];
+
+        allSheetNames.forEach(sheetName => {
+            const sheetData = XLSX.utils.sheet_to_json(db1.Sheets[sheetName]);
+            // 尋找該使用者在同一天的資料
+            const userRow = sheetData.find(r => String(r.record_end).includes(searchDate) || String(r.record_end).includes(tDate));
+            if (userRow && userRow.Personal_Battery_weighted_round !== undefined) {
+                allUsersBatteries.push(Number(userRow.Personal_Battery_weighted_round));
+            }
+        });
+
+        if (allUsersBatteries.length > 0) {
+            // 計算有多少人低於當前目標電量
+            const countLower = allUsersBatteries.filter(val => targetBattery > val).length;
+            const percentage = Math.round((countLower / allUsersBatteries.length) * 100);
+            percentileText = ` (超過 ${percentage}% 的使用者)`;
+        }
+        // ------------------------------------
 
         document.getElementById('out-id').innerText = sid;
         document.getElementById('out-date').innerText = tDate;
-        document.getElementById('out-battery').innerText = data1[idx].Personal_Battery_weighted_round || 0;
+        // 修改此行以呈現百分比
+        document.getElementById('out-battery').innerText = targetBattery + percentileText;
         
         const avg7 = getMA(data1, idx, 'Personal_Battery_weighted_round', 7);
         document.getElementById('out-avg7').innerText = avg7 !== null ? avg7 : '--';
         
         document.getElementById('box-txt1').innerText = document.getElementById('in-txt1').value;
 
+        // 生理狀態燈號邏輯 (保持不變)
         const sRow = data2.find(r => r.日期 && String(r.日期).replace(/\//g, '-').includes(searchDate));
         const statusVal = (sRow && sRow.生理狀態燈號) ? sRow.生理狀態燈號 : '--';
         if (statusVal !== '--') {
@@ -264,6 +295,7 @@
             document.getElementById('out-status').innerText = '--';
         }
 
+        // 圖片與圖表邏輯 (保持不變)
         const imgFile = document.getElementById('cfg-img').files[0];
         if(imgFile) {
             document.getElementById('out-img').src = URL.createObjectURL(imgFile);
@@ -278,19 +310,19 @@
 
         draw('chart-2', labels, d14.map(r=>r.Personal_Battery_weighted_round), d14.map((_, i)=>getMA(data1, offset+i, 'Personal_Battery_weighted_round', 7)), 'bar');
         draw('chart-3', labels, d14.map(r=>r.N3_pct), d14.map((_, i)=>getMA(data1, offset+i, 'N3_pct', 7)), 'bar', { range: [10, 20] });
-        
         draw('chart-4', labels, d14.map(r=>r.rMSSD), d14.map((_, i)=>{
             let a = getMA(data1, offset+i, 'rMSSD', 7); 
             return a !== null ? [a*0.9, a*1.1] : null;
         }), 'range');
-
         draw('chart-5', labels, d14.map(r=>r.HR_min), d14.map((_, i)=>{
             let a = getMA(data1, offset+i, 'HR_min', 7); 
             return a !== null ? [a-5, a+5] : null;
         }), 'range');
-
         draw('chart-6', labels, d14.map(r=>r.HBI), d14.map((_, i)=>getMA(data1, offset+i, 'HBI', 7)), 'bar');
     }
+
+
+
 
     function draw(id, labels, lineData, helperData, type, extra={}) {
         if(charts[id]) charts[id].destroy();
