@@ -60,7 +60,7 @@
 <body>
 
 <div class="controls">
-    <h2>生理狀態分析報告生成器 V41</h2>
+    <h2>生理狀態分析報告生成器 V42</h2>
     <div class="input-row">
         <div class="input-item"><label>1. 主電量檔案</label><input type="file" id="file1" accept=".xlsx"></div>
         <div class="input-item"><label>2. 自評檔案</label><input type="file" id="file2" accept=".xlsx"></div>
@@ -196,16 +196,21 @@
         return todayVal < yestVal ? '▼' : (todayVal > yestVal ? '▲' : '＝');
     }
 
-    function getMA(full, currIdx, col, days) {
-        // 排除當天數據：從 currIdx-days 到 currIdx-1
+function getMA(full, currIdx, col, days) {
+        // 1. 取得指定區間的切片（不含當日，最多往前推 days 天）
         const slice = full.slice(Math.max(0, currIdx - days), currIdx);
         if(!slice.length) return null;
         
-        const validData = slice.map(r => Number(r[col])).filter(val => !isNaN(val));
+        // 2. 篩選出該區間內有效的數字資料（排除空白或非數字）
+        const validData = slice.map(r => Number(r[col])).filter(val => !isNaN(val) && val !== 0);
+        
+        // 3. 若完全沒有有效資料則回傳 null
         if(!validData.length) return null;
 
-        // 依據實際資料筆數計算平均
-        return Math.round(validData.reduce((a, b) => a + b, 0) / validData.length);
+        // 4. 【關鍵修改】：除以實際有效的資料筆數 (validData.length)
+        // 若只有 2 筆就除以 2，滿 7 筆則除以 7
+        const sum = validData.reduce((a, b) => a + b, 0);
+        return Math.round(sum / validData.length);
     }
 
     function autoFetchLib() {
